@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<title>Scope Mission</title>
+<style>
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  overflow: hidden;
+  background: #111;
+  font-family: Arial, sans-serif;
+  user-select: none;
+}
+
+#game {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  cursor: none;
+  background:
+    linear-gradient(rgba(20,30,25,.3), rgba(10,10,10,.5)),
+    radial-gradient(circle at 50% 40%, #879684, #2d382d 70%, #111 100%);
+}
+
+#field {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(to bottom, rgba(200,220,210,.35) 0 24%, transparent 25%),
+    linear-gradient(to bottom, transparent 0 60%, rgba(45,65,35,.7) 61% 100%);
+}
+
+#hud {
+  position: absolute;
+  top: 18px;
+  left: 20px;
+  z-index: 50;
+  color: #e8f9e8;
+  text-shadow: 0 0 8px #000;
+  font-size: 22px;
+  font-weight: bold;
+  line-height: 1.7;
+}
+
+#message {
+  position: absolute;
+  top: 18px;
+  right: 20px;
+  z-index: 50;
+  color: #fff;
+  font-size: 18px;
+  text-shadow: 0 0 8px #000;
+}
+
+.enemy, .tank {
+  position: absolute;
+  transform-origin: center bottom;
+  pointer-events: none;
+  filter: drop-shadow(0 12px 8px rgba(0,0,0,.55));
+}
+
+.enemy { z-index: 10; }
+.tank { z-index: 25; }
+
+#scope {
+  position: absolute;
+  width: 420px;
+  height: 420px;
+  z-index: 100;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: rgba(0,0,0,.38);
+  box-shadow: 0 0 0 9999px rgba(0,0,0,.42), inset 0 0 18px #000;
+}
+
+#scope img {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  opacity: .9;
+  mix-blend-mode: multiply;
+}
+
+#flash {
+  position: absolute;
+  inset: 0;
+  background: rgba(255,255,255,.35);
+  z-index: 90;
+  opacity: 0;
+  pointer-events: none;
+}
+
+#gameover {
+  display: none;
+  position: absolute;
+  inset: 0;
+  z-index: 200;
+  background: rgba(0,0,0,.85);
+  color: white;
+  text-align: center;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+}
+
+#gameover h1 {
+  font-size: 72px;
+  margin: 0 0 18px;
+  letter-spacing: 4px;
+  text-shadow: 0 0 15px red;
+}
+
+#gameover img {
+  width: min(520px, 80vw);
+  max-height: 45vh;
+  object-fit: cover;
+  border: 4px solid #ddd;
+  box-shadow: 0 0 25px #000;
+}
+
+#restart {
+  margin-top: 24px;
+  padding: 12px 26px;
+  font-size: 18px;
+  border: none;
+  border-radius: 10px;
+  background: #eab308;
+  cursor: pointer;
+  font-weight: bold;
+}
+</style>
+</head>
+
+<body>
+<div id="game">
+  <div id="field"></div>
+
+  <div id="hud">
+    TIME: <span id="time">03:00</span><br>
+    POINT: <span id="score">0</span>
+  </div>
+
+  <div id="message">마우스로 조준 후 클릭하세요</div>
+  <div id="flash"></div>
+
+  <div id="scope">
+    <img src="assets/scope.png" alt="scope">
+  </div>
+
+  <div id="gameover">
+    <h1>GAME OVER</h1>
+    <img src="assets/gameover.png" alt="game over sniper">
+    <h2>최종 점수: <span id="finalScore">0</span> point</h2>
+    <button id="restart" onclick="location.reload()">다시 시작</button>
+  </div>
+</div>
+
+<script>
+const game = document.getElementById('game');
+const scope = document.getElementById('scope');
+const timeEl = document.getElementById('time');
+const scoreEl = document.getElementById('score');
+const finalScoreEl = document.getElementById('finalScore');
+const flash = document.getElementById('flash');
+const gameOverBox = document.getElementById('gameover');
+
+let score = 0;
+let timeLeft = 180;
+let gameEnded = false;
+let enemies = [];
+let tanks = [];
+
+const enemyImg = 'assets/enemy.png';
+const tankImg = 'assets/tank.png';
+
+function rand(min, max) {
+  return Math.random() * (max - min) + min;
+}
+
+function formatTime(sec) {
+  const m = Math.floor(sec / 60);
+  const s = sec % 60;
+  return String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+}
+
+function spawnEnemy() {
+  if (gameEnded) return;
+
+  const depth = Math.random();
+
+  const size =
+    depth < .35 ? rand(145, 185) :
+    depth < .7 ? rand(95, 130) :
+    rand(60, 85);
+
+  const y =
+    depth < .35 ? rand(innerHeight * .54, innerHeight * .70) :
+    depth < .7 ? rand(innerHeight * .42, innerHeight * .58) :
+    rand(innerHeight * .30, innerHeight * .46);
+
+  const el = document.createElement('img');
+  el.src = enemyImg;
+  el.className = 'enemy';
+  el.style.width = size + 'px';
+  el.style.left = rand(40, innerWidth - size - 40) + 'px';
+  el.style.top = y + 'px';
+  el.style.zIndex = String(Math.floor(20 + depth * 10));
+
+  game.appendChild(el);
+
+  enemies.push({
+    el,
+    x: parseFloat(el.style.left),
+    y,
+    w: size,
+    h: size * .65,
+    dir: Math.random() < .5 ? -1 : 1,
+    speed: rand(.18, .45)
+  });
+}
+
+function spawnTank() {
+  if (gameEnded || timeLeft > 60) return;
+
+  const size = rand(300, 430);
+  const y = rand(innerHeight * .55, innerHeight * .78);
+  const fromLeft = Math.random() < .5;
+
+  const el = document.createElement('img');
+  el.src = tankImg;
+  el.className = 'tank';
+  el.style.width = size + 'px';
+  el.style.left = fromLeft ? -size + 'px' : innerWidth + 'px';
+  el.style.top = y + 'px';
+
+  if (!fromLeft) el.style.transform = 'scaleX(-1)';
+
+  game.appendChild(el);
+
+  tanks.push({
+    el,
+    x: fromLeft ? -size : innerWidth,
+    y,
+    w: size,
+    h: size * .55,
+    dir: fromLeft ? 1 : -1,
+    speed: rand(1.1, 2.2)
+  });
+}
+
+function isCoveredByTank(x, y) {
+  for (const t of tanks) {
+    if (
+      x >= t.x &&
+      x <= t.x + t.w &&
+      y >= t.y &&
+      y <= t.y + t.h
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function shoot(x, y) {
+  if (gameEnded) return;
+
+  flash.style.opacity = 1;
+  setTimeout(() => flash.style.opacity = 0, 65);
+
+  if (isCoveredByTank(x, y)) return;
+
+  for (let i = enemies.length - 1; i >= 0; i--) {
+    const e = enemies[i];
+    const r = e.el.getBoundingClientRect();
+
+    if (
+      x >= r.left &&
+      x <= r.right &&
+      y >= r.top &&
+      y <= r.bottom
+    ) {
+      e.el.remove();
+      enemies.splice(i, 1);
+      score++;
+      scoreEl.textContent = score;
+      spawnEnemy();
+      return;
+    }
+  }
+}
+
+game.addEventListener('mousemove', e => {
+  scope.style.left = e.clientX + 'px';
+  scope.style.top = e.clientY + 'px';
+});
+
+game.addEventListener('click', e => {
+  shoot(e.clientX, e.clientY);
+});
+
+function update() {
+  if (gameEnded) return;
+
+  if (timeLeft <= 80) {
+    for (const e of enemies) {
+      e.x += e.dir * e.speed;
+
+      if (e.x < 10 || e.x + e.w > innerWidth - 10) {
+        e.dir *= -1;
+      }
+
+      e.el.style.left = e.x + 'px';
+    }
+  }
+
+  for (let i = tanks.length - 1; i >= 0; i--) {
+    const t = tanks[i];
+    t.x += t.dir * t.speed;
+    t.el.style.left = t.x + 'px';
+
+    if (t.x < -t.w - 100 || t.x > innerWidth + 100) {
+      t.el.remove();
+      tanks.splice(i, 1);
+    }
+  }
+
+  requestAnimationFrame(update);
+}
+
+function endGame() {
+  gameEnded = true;
+  finalScoreEl.textContent = score;
+  gameOverBox.style.display = 'flex';
+}
+
+for (let i = 0; i < 7; i++) {
+  spawnEnemy();
+}
+
+setInterval(() => {
+  if (gameEnded) return;
+
+  timeLeft--;
+  timeEl.textContent = formatTime(timeLeft);
+
+  if (timeLeft <= 0) {
+    endGame();
+  }
+}, 1000);
+
+setInterval(() => {
+  if (!gameEnded && enemies.length < 10) {
+    spawnEnemy();
+  }
+}, 2200);
+
+setInterval(spawnTank, 3200);
+
+update();
+</script>
+</body>
+</html>
